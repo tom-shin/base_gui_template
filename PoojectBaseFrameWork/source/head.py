@@ -1,0 +1,235 @@
+import warnings
+
+warnings.filterwarnings("ignore", category=FutureWarning)
+
+import sys
+import os
+import json
+import logging
+import re
+import traceback
+import shutil
+import chardet
+from collections import OrderedDict
+from PyQt5 import QtCore, QtWidgets, QtGui
+from PyQt5.QtCore import pyqtSignal, QTimer, Qt, QObject
+from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QLabel, QProgressBar, QPushButton,
+                             QHBoxLayout, QSpacerItem, QSizePolicy, QRadioButton)
+
+import platform
+
+# Enable or disable logging
+ENABLE_LOGGING = True
+
+# ANSI escape code pattern
+ANSI_ESCAPE = re.compile(r'\x1B[@-_][0-?]*[ -/]*[@-~]')
+
+
+def log_info(*args):
+    if ENABLE_LOGGING:
+        logging.info(" ".join(map(str, args)))
+
+
+def load_module_func(module_name):
+    mod = __import__(f"{module_name}", fromlist=[module_name])
+    return mod
+
+
+def check_environment():
+    env = ''
+    system = platform.system()
+    if system == "Windows":
+        # Windows인지 확인, WSL 포함
+        if "microsoft" in platform.version().lower() or "microsoft" in platform.release().lower():
+            env = "WSL"  # Windows Subsystem for Linux
+        env = "Windows"  # 순수 Windows
+    elif system == "Linux":
+        # Linux에서 WSL인지 확인
+        try:
+            with open("/proc/version", "r") as f:
+                version_info = f.read().lower()
+            if "microsoft" in version_info:
+                env = "WSL"  # WSL 환경
+        except FileNotFoundError:
+            pass
+        env = "Linux"  # 순수 Linux
+    else:
+        env = "Other"  # macOS 또는 기타 운영체제
+
+    # PRINT_(env)
+    return env
+
+
+def handle_exception(e):
+    traceback.print_exc()
+    sys.exit(1)
+
+
+class EmittingStream(QObject):
+    textWritten = pyqtSignal(str)
+
+    def write(self, text):
+        self.textWritten.emit(str(text))
+
+    def flush(self):
+        pass
+
+
+class ProgressDialog(QDialog):
+    progress_stop_signal = pyqtSignal()
+
+    def __init__(self, message, modal=True, show_close_button=False, parent=None,
+                 remove_percent_sign=False, auto_increment=False):
+        super().__init__(parent)
+        self.setWindowTitle(message)
+        self.closed_by_code = False
+        self.remove_percent_sign = remove_percent_sign
+        self.auto_increment = auto_increment
+        self.count = 0
+        self.max_count = 100
+
+        self.setModal(modal) if modal else self.setWindowModality(QtCore.Qt.NonModal)
+        self.resize(700, 100)
+
+        self.progress_bar = QProgressBar(self)
+        self.progress_bar.setMaximum(self.max_count)
+        if self.remove_percent_sign:
+            self.progress_bar.setFormat("")
+
+        self.label = QLabel("", self)
+        self.radio_button = QRadioButton("", self)
+        self.close_button = QPushButton("Close", self)
+        self.close_button.setVisible(show_close_button)
+
+        # Layout configuration
+        h_layout = QHBoxLayout()
+        h_layout.addSpacerItem(QSpacerItem(40, 20, QSizePolicy.Expanding, QSizePolicy.Minimum))
+        h_layout.addWidget(self.close_button)
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(self.progress_bar)
+        layout.addWidget(self.label)
+        layout.addWidget(self.radio_button)
+        layout.addLayout(h_layout)
+        self.setLayout(layout)
+
+        # Timer for blinking radio button
+        self.timer = QTimer(self)
+        self.radio_state = False
+        self.timer.timeout.connect(self.toggle_radio_button)
+        self.timer.start(100)
+
+        # Signals and Slots
+        self.close_button.clicked.connect(self.close_dialog)
+        self.setWindowFlags(self.windowFlags() & ~Qt.WindowCloseButtonHint & ~Qt.WindowContextHelpButtonHint)
+
+    def set_progress_max(self, max_value):
+        self.max_count = max_value
+        self.progress_bar.setMaximum(max_value)
+
+    def update_progress(self, value):
+        self.progress_bar.setValue(int(value))
+
+    def update_text(self, text):
+        self.label.setText(text)
+
+    def show_progress(self):
+        super().exec_() if self.isModal() else self.show()
+
+    def toggle_radio_button(self):
+        if self.auto_increment:
+            self.count += 1
+            self.update_progress(self.count % self.max_count)
+
+        self.radio_button.setStyleSheet(f"""
+            QRadioButton::indicator {{
+                width: 12px;
+                height: 12px;
+                background-color: {'red' if self.radio_state else 'blue'};
+                border-radius: 5px;
+            }}
+        """)
+        self.radio_state = not self.radio_state
+
+    def close_dialog(self):
+        self.closed_by_code = True
+        self.close()
+
+    def closeEvent(self, event):
+        self.timer.stop()
+        self.progress_stop_signal.emit()
+        log_info("Closed by Code" if self.closed_by_code else "Closed by User")
+        self.closed_by_code = False
+        event.accept()
+
+
+class FileManager:
+    @staticmethod
+    def is_directory(path):
+        return os.path.isdir(path)
+
+    @staticmethod
+    def is_file(path):
+        return os.path.isfile(path)
+
+    @staticmethod
+    def save_json(file_path, data, use_encoding=False):
+        try:
+            if not file_path.endswith(".json"):
+                file_path += ".json"
+            encoding = FileManager.detect_encoding(file_path) if use_encoding else "utf-8"
+
+            with open(file_path, "w", encoding=encoding) as f:
+                json.dump(data, f, indent=4, ensure_ascii=False, sort_keys=False)
+            return True
+        except Exception as e:
+            handle_exception(e)
+
+    @staticmethod
+    def load_json(file_path, use_encoding=False):
+        try:
+            encoding = FileManager.detect_encoding(file_path) if use_encoding else "utf-8"
+            with open(file_path, "r", encoding=encoding) as f:
+                return True, json.load(f, object_pairs_hook=OrderedDict)
+        except Exception as e:
+            handle_exception(e)
+            return False, None
+
+    @staticmethod
+    def save_text(file_path, data, use_encoding=False):
+        try:
+            if not file_path.endswith(".txt"):
+                file_path += ".txt"
+            encoding = FileManager.detect_encoding(file_path) if use_encoding else "utf-8"
+            with open(file_path, "w", encoding=encoding) as f:
+                f.write(data)
+        except Exception as e:
+            handle_exception(e)
+
+    @staticmethod
+    def save_html(file_path, data, use_encoding=False):
+        try:
+            if not file_path.endswith(".html"):
+                file_path += ".html"
+            encoding = FileManager.detect_encoding(file_path) if use_encoding else "utf-8"
+            with open(file_path, "w", encoding=encoding) as f:
+                f.write(data)
+        except Exception as e:
+            handle_exception(e)
+
+    @staticmethod
+    def detect_encoding(file_path):
+        try:
+            with open(file_path, 'rb') as f:
+                return chardet.detect(f.read()).get('encoding', 'utf-8')
+        except Exception:
+            return 'utf-8'
+
+    @staticmethod
+    def recreate_directory(target_dir):
+        try:
+            if os.path.exists(target_dir):
+                shutil.rmtree(target_dir)
+            os.makedirs(target_dir, exist_ok=True)
+        except Exception as e:
+            handle_exception(e)
