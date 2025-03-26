@@ -14,10 +14,7 @@
     },
     "test_set_creation": {
         "use_graph_gen": false,
-        "test_size": 3,
-        "SingleHopSpecificQuerySynthesizer":  0.8,
-        "MultiHopAbstractQuerySynthesizer":  0.1,
-        "MultiHopSpecificQuerySynthesizer": 0.1
+        "test_size": 3
     },
     "filter": {
         "include": [

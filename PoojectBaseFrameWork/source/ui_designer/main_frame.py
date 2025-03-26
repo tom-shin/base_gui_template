@@ -288,7 +288,7 @@ class Ui_MainWindow(object):
         self.label_5.setText(_translate("MainWindow", "Source Directory"))
         self.dirpushButton.setText(_translate("MainWindow", "Dir Open"))
         self.groupBox_4.setTitle(_translate("MainWindow", "Ctrl.params."))
-        self.label_8.setText(_translate("MainWindow", "파일별 질문 갯수"))
+        self.label_8.setText(_translate("MainWindow", "Test Size"))
         self.n_lineEdit.setText(_translate("MainWindow", "10"))
         self.gengenpushButton.setText(_translate("MainWindow", "Generate (질문 생성)"))
         self.label_7.setText(_translate("MainWindow", "Files Num."))

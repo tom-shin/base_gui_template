@@ -10,13 +10,13 @@ import re
 import traceback
 import shutil
 import chardet
+import platform
+
 from collections import OrderedDict
 from PyQt5 import QtCore, QtWidgets, QtGui
 from PyQt5.QtCore import pyqtSignal, QTimer, Qt, QObject
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QLabel, QProgressBar, QPushButton,
                              QHBoxLayout, QSpacerItem, QSizePolicy, QRadioButton, QFileDialog)
-
-import platform
 
 # Enable or disable logging
 ENABLE_LOGGING = True
@@ -82,7 +82,6 @@ class ProgressDialog(QDialog):
                  remove_percent_sign=False, auto_increment=False):
         super().__init__(parent)
         self.setWindowTitle(message)
-        self.closed_by_code = False
         self.remove_percent_sign = remove_percent_sign
         self.auto_increment = auto_increment
         self.count = 0
@@ -142,6 +141,10 @@ class ProgressDialog(QDialog):
             self.count += 1
             self.update_progress(self.count % self.max_count)
 
+        # self.radio_state가 없을 경우 기본값 설정
+        if not hasattr(self, "radio_state"):
+            self.radio_state = False
+
         self.radio_button.setStyleSheet(f"""
             QRadioButton::indicator {{
                 width: 12px;
@@ -152,19 +155,18 @@ class ProgressDialog(QDialog):
         """)
         self.radio_state = not self.radio_state
 
-    # def close_dialog(self):
-    #     # print("종료 1")
-    #     self.closed_by_code = True
-    #     self.close()
-
     def closeEvent(self, event):
         print("popup closedEvent")
-        self.timer.stop()
-        self.progress_stop_signal.emit()
-        # print("종료 2" if self.closed_by_code else "사용자 강제 종지 ")
-        # self.closed_by_code = False
-        event.accept()
 
+        # self.timer가 존재하는지 확인 후 stop()
+        if hasattr(self, "timer") and self.timer is not None:
+            self.timer.stop()
+
+        # progress_stop_signal이 존재하는지 확인 후 emit()
+        if hasattr(self, "progress_stop_signal"):
+            self.progress_stop_signal.emit()
+
+        event.accept()
 
 class FileManager:
     @staticmethod

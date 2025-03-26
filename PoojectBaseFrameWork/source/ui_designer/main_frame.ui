@@ -346,7 +346,7 @@
                       </font>
                      </property>
                      <property name="text">
-                      <string>파일별 질문 갯수</string>
+                      <string>Test Size</string>
                      </property>
                     </widget>
                    </item>

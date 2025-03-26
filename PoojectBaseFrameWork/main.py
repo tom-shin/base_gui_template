@@ -15,7 +15,7 @@ else:
 
 
 class LoadFiles(QThread, FileManager):
-    LoadFiles_finisehd_file_list_signal = pyqtSignal(list)
+    LoadFiles_finished_file_list_signal = pyqtSignal(list)
 
     def __init__(self, dirpath, file_filter=None):
         super().__init__()
@@ -30,7 +30,7 @@ class LoadFiles(QThread, FileManager):
         print("File Loading ...")
         file_list = self.search_files(directory=self.dirpath, file_filter=self.filter)
 
-        self.LoadFiles_finisehd_file_list_signal.emit(file_list)
+        self.LoadFiles_finished_file_list_signal.emit(file_list)
 
     def stop(self):
         self.quit()
@@ -57,8 +57,6 @@ class ProjectMainWindow(QtWidgets.QMainWindow, FileManager):
 
         _, self.CONFIG_PARAMS = self.load_json(control_parameter_path, use_encoding=False)
 
-
-
         # 기존 UI 로드
         rt = load_module_func(module_name="source.ui_designer.main_frame")
         self.mainFrame_ui = rt.Ui_MainWindow()
@@ -68,13 +66,6 @@ class ProjectMainWindow(QtWidgets.QMainWindow, FileManager):
         os.environ["OPENAI_API_KEY"] = "".join(self.CONFIG_PARAMS["openai"]["key"])
 
     def mainFrameInitialize(self):
-        self.mainFrame_ui.label_SpecificQuerySynthesizer.hide()
-        self.mainFrame_ui.label_ComparativeAbstractQuerySynthesizer.hide()
-        self.mainFrame_ui.label_11.hide()
-
-        self.mainFrame_ui.lineEdit_SpecificQuerySynthesizer.hide()
-        self.mainFrame_ui.lineEdit_ComparativeAbstractQuerySynthesizer.hide()
-        self.mainFrame_ui.lineEdit_AbstractQuerySynthesizer.hide()
         self.mainFrame_ui.n_lineEdit.setText(str(self.CONFIG_PARAMS["test_set_creation"]["test_size"]))
 
     def closeEvent(self, event):
@@ -118,6 +109,10 @@ class ProjectMainWindow(QtWidgets.QMainWindow, FileManager):
         self.mainFrame_ui.log_clear_pushButton.clicked.connect(self.cleanLogBrowser)
         self.mainFrame_ui.gengenpushButton.clicked.connect(self.testSetCreation_job)
         self.mainFrame_ui.dirpushButton.clicked.connect(self.testSetCreation_doc_selection)
+        self.mainFrame_ui.clear_pushButton.clicked.connect(self.testSetCreation_erase_file_list)
+
+    def testSetCreation_erase_file_list(self):
+        self.mainFrame_ui.filelistlistWidget.clear()
 
     def finished_TestSetCreation(self):
         print("finished_TestSetCreation")
@@ -143,7 +138,7 @@ class ProjectMainWindow(QtWidgets.QMainWindow, FileManager):
             return
 
         load_file_instance = LoadFiles(dirpath=m_dir, file_filter=self.CONFIG_PARAMS["filter"]["include"])
-        load_file_instance.LoadFiles_finisehd_file_list_signal.connect(self.testSetCreation_gui_set)
+        load_file_instance.LoadFiles_finished_file_list_signal.connect(self.testSetCreation_gui_set)
         load_file_instance.start()
 
         self.threadList.append(load_file_instance)
@@ -156,7 +151,8 @@ class ProjectMainWindow(QtWidgets.QMainWindow, FileManager):
 
         test_size = self.CONFIG_PARAMS["test_set_creation"]["test_size"]
 
-        ctrl_parm = {"file_list": self.file_list, "gpt_model": "gpt-4o-mini", "test_size": test_size, "user": "tom.shin", "file_extension": self.CONFIG_PARAMS["filter"]["include"]}
+        ctrl_parm = {"file_list": self.file_list, "gpt_model": "gpt-4o-mini", "test_size": test_size,
+                     "user": "tom.shin", "file_extension": self.CONFIG_PARAMS["filter"]["include"]}
 
         thread = TestSetCreation(ctrl_parm=ctrl_parm)
         thread.TestSetCreation_finished_thread_signal.connect(self.finished_TestSetCreation)
