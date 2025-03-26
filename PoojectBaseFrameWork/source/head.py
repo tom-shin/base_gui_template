@@ -14,7 +14,7 @@ from collections import OrderedDict
 from PyQt5 import QtCore, QtWidgets, QtGui
 from PyQt5.QtCore import pyqtSignal, QTimer, Qt, QObject
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QLabel, QProgressBar, QPushButton,
-                             QHBoxLayout, QSpacerItem, QSizePolicy, QRadioButton)
+                             QHBoxLayout, QSpacerItem, QSizePolicy, QRadioButton, QFileDialog)
 
 import platform
 
@@ -120,10 +120,11 @@ class ProgressDialog(QDialog):
         self.timer.start(100)
 
         # Signals and Slots
-        self.close_button.clicked.connect(self.close_dialog)
+        # self.close_button.clicked.connect(self.close_dialog)
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowCloseButtonHint & ~Qt.WindowContextHelpButtonHint)
 
     def set_progress_max(self, max_value):
+        # print("max cnt: ", max_value)
         self.max_count = max_value
         self.progress_bar.setMaximum(max_value)
 
@@ -151,15 +152,17 @@ class ProgressDialog(QDialog):
         """)
         self.radio_state = not self.radio_state
 
-    def close_dialog(self):
-        self.closed_by_code = True
-        self.close()
+    # def close_dialog(self):
+    #     # print("종료 1")
+    #     self.closed_by_code = True
+    #     self.close()
 
     def closeEvent(self, event):
+        print("popup closedEvent")
         self.timer.stop()
         self.progress_stop_signal.emit()
-        log_info("Closed by Code" if self.closed_by_code else "Closed by User")
-        self.closed_by_code = False
+        # print("종료 2" if self.closed_by_code else "사용자 강제 종지 ")
+        # self.closed_by_code = False
         event.accept()
 
 
@@ -233,3 +236,25 @@ class FileManager:
             os.makedirs(target_dir, exist_ok=True)
         except Exception as e:
             handle_exception(e)
+
+    @staticmethod
+    def search_files(directory=None, file_filter=None):
+
+        if file_filter is None:
+            file_filter = []
+
+        def find_file(root_dir, extensions):
+            found_files = []
+            for dirpath, _, filenames in os.walk(root_dir):
+                for filename in filenames:
+                    if any(filename.lower().endswith(ext) for ext in extensions):
+                        found_files.append(os.path.join(dirpath, filename))
+            return found_files
+
+        files = find_file(os.path.normpath(directory), file_filter)
+
+        return files
+
+    @staticmethod
+    def get_file_size(file_path):
+        return os.path.getsize(file_path)
