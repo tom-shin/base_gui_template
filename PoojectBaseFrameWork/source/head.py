@@ -24,10 +24,29 @@ ENABLE_LOGGING = True
 # ANSI escape code pattern
 ANSI_ESCAPE = re.compile(r'\x1B[@-_][0-?]*[ -/]*[@-~]')
 
+# 로그 설정
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S"
+)
 
-def log_info(*args):
+
+def log_info(level, *args):
+    """로그 메시지를 주어진 레벨로 출력"""
     if ENABLE_LOGGING:
-        logging.info(" ".join(map(str, args)))
+        message = " ".join(map(str, args))
+
+        if level.lower() == "info":
+            logging.info(message)
+        elif level.lower() == "warning":
+            logging.warning(message)
+        elif level.lower() == "error":
+            logging.error(message)
+        elif level.lower() == "critical":
+            logging.critical(message)
+        else:
+            logging.debug(message)  # 기본값: DEBUG
 
 
 def load_module_func(module_name):
@@ -56,7 +75,6 @@ def check_environment():
     else:
         env = "Other"  # macOS 또는 기타 운영체제
 
-    # PRINT_(env)
     return env
 
 
@@ -119,11 +137,11 @@ class ProgressDialog(QDialog):
         self.timer.start(100)
 
         # Signals and Slots
-        # self.close_button.clicked.connect(self.close_dialog)
+        self.close_button.clicked.connect(self.close)
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowCloseButtonHint & ~Qt.WindowContextHelpButtonHint)
 
     def set_progress_max(self, max_value):
-        # print("max cnt: ", max_value)
+        # log_info("info", "max cnt: ", max_value)
         self.max_count = max_value
         self.progress_bar.setMaximum(max_value)
 
@@ -156,7 +174,7 @@ class ProgressDialog(QDialog):
         self.radio_state = not self.radio_state
 
     def closeEvent(self, event):
-        print("popup closedEvent")
+        log_info("info", "popup closedEvent")
 
         # self.timer가 존재하는지 확인 후 stop()
         if hasattr(self, "timer") and self.timer is not None:
@@ -167,6 +185,7 @@ class ProgressDialog(QDialog):
             self.progress_stop_signal.emit()
 
         event.accept()
+
 
 class FileManager:
     @staticmethod
@@ -199,6 +218,18 @@ class FileManager:
         except Exception as e:
             handle_exception(e)
             return False, None
+
+    @staticmethod
+    def save_file(file_path=None, data="", use_encoding=False):
+        try:
+            if file_path is None:
+                print("Select File Path")
+                return
+
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write(data)
+        except Exception as e:
+            handle_exception(e)
 
     @staticmethod
     def save_text(file_path, data, use_encoding=False):
@@ -260,3 +291,10 @@ class FileManager:
     @staticmethod
     def get_file_size(file_path):
         return os.path.getsize(file_path)
+
+    def copy_file(self, src_path, dest_dir):
+        if self.is_file(dest_dir):
+            os.remove(dest_dir)
+
+        shutil.copy2(src_path, dest_dir)
+
